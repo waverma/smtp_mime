@@ -26,34 +26,48 @@ def get_addr(addr: str):
 
 
 class SMTPClient:
-    def __init__(self, user: str, to: str, subject: str, images: str, use_ssl: bool, smtp_server_address: str, use_auth: bool, show_verbose: bool):
+    # def __init__(self, user: str, to: str, subject: str, images: str, use_ssl: bool, smtp_server_address: str, use_auth: bool, show_verbose: bool):
+    #     self.ssl_available = False
+    #     self.auth_available = True
+    #
+    #     self.show_verbose = show_verbose
+    #     self.use_auth = use_auth
+    #     self.use_ssl = use_ssl
+    #     self.images = images
+    #     self.subject = subject
+    #     self.to = to
+    #     self.user = user
+    #     self.smtp_server_address = smtp_server_address
+    #     self.sock = None
+    #
+    #     self.image_dict = dict()
+    #     self.image_dict['gif'] = 'gif'
+    #     self.image_dict['jpeg'] = 'jpeg'
+    #     self.image_dict['jpg'] = 'jpeg'
+    #     self.image_dict['png'] = 'png'
+    #     self.image_dict['svgz'] = 'svg+xml'
+    #     self.image_dict['svg'] = 'svg+xml'
+    #     self.image_dict['tif'] = 'tiff'
+    #     self.image_dict['tiff'] = 'tiff'
+    #     self.image_dict['ico'] = 'vnd.microsoft.icon'
+    #     self.image_dict['wbmp'] = 'vnd.wap.wbmp'
+    #     self.image_dict['webp'] = 'webp'
+
+    def __init__(self, user: str, to: str, subject: str, text_file: str, use_ssl: bool, smtp_server_address: str, use_auth: bool, show_verbose: bool):
         self.ssl_available = False
         self.auth_available = True
 
         self.show_verbose = show_verbose
         self.use_auth = use_auth
         self.use_ssl = use_ssl
-        self.images = images
+        self.text_file = text_file
         self.subject = subject
         self.to = to
         self.user = user
         self.smtp_server_address = smtp_server_address
         self.sock = None
 
-        self.image_dict = dict()
-        self.image_dict['gif'] = 'gif'
-        self.image_dict['jpeg'] = 'jpeg'
-        self.image_dict['jpg'] = 'jpeg'
-        self.image_dict['png'] = 'png'
-        self.image_dict['svgz'] = 'svg+xml'
-        self.image_dict['svg'] = 'svg+xml'
-        self.image_dict['tif'] = 'tiff'
-        self.image_dict['tiff'] = 'tiff'
-        self.image_dict['ico'] = 'vnd.microsoft.icon'
-        self.image_dict['wbmp'] = 'vnd.wap.wbmp'
-        self.image_dict['webp'] = 'webp'
-
-    def throw_error(self, m:str):
+    def throw_error(self, m: str):
         self.check_response_code_for_errors('500', "", [''], {}, m)
 
     def check_response_code_for_errors(
@@ -75,12 +89,12 @@ class SMTPClient:
             self.close()
         else:
             if response_code not in expected_success_codes:
-                print_log("PROGRAM", b"Your login is " + bytes(f'Warning: unexpected success response code: {response_code}', 'utf-8'))
+                print_log("PROGRAM", b"Your login is " + bytes(f'{self.to}  Warning: unexpected success response code: {response_code}', 'utf-8'))
 
-    def get_all_images(self):
-        for filename in os.listdir(self.images):
-            if filename[filename.rfind(".") + 1:] in self.image_dict:
-                yield filename, self.image_dict[filename[filename.rfind(".") + 1:]]
+    # def get_all_images(self):
+    #     for filename in os.listdir(self.images):
+    #         if filename[filename.rfind(".") + 1:] in self.image_dict:
+    #             yield filename, self.image_dict[filename[filename.rfind(".") + 1:]]
 
     def run(self):
         try:
@@ -150,10 +164,11 @@ class SMTPClient:
 
         code = self.send(base64.b64encode(bytes(self.user, "utf-8")) + b'\r\n')
         self.check_response_code_for_errors(code[0][0], code[0][1], ['334'], {})
-        print_log("PROGRAM", b"Your login is " + bytes(self.user, 'utf-8'))
+        # print_log("PROGRAM", b"Your login is " + bytes(self.user, 'utf-8'))
         p = ''
         try:
-            p = getpass.getpass(prompt='PROGRAM\t\tEnter password:')
+            # p = getpass.getpass(prompt='PROGRAM\t\tEnter password:')
+            p = ""
         except KeyboardInterrupt:
             self.close()
         code = self.send(base64.b64encode(bytes(p, "utf-8")) + b'\r\n')
@@ -172,33 +187,44 @@ class SMTPClient:
         self.check_response_code_for_errors(code[0][0], code[0][1], ['354'], {})
 
         self.send(b"From: <" + bytes(self.user, 'utf-8') + b">\r\n", False)
+
         self.send(b"Subject: " + bytes(self.subject, 'utf-8') + b"\r\n", False)
-        self.send(b"Content-Type: multipart/mixed; boundary=qwerty\r\n", False)
+        self.send(b"\r\n", False)
 
+        file = open(self.text_file, "r", encoding='utf-8')
 
-        for image in self.get_all_images():
-            self.send(b"\r\n", False)
-            self.send(b"--qwerty\r\n", False)
-            self.send(bytes(f"Content-Type: image/{image[1]}; name={image[0]}\r\n", 'utf-8'), False)
-            self.send(bytes(f"Content-Transfer-Encoding: base64\r\n", 'utf-8'), False)
-            self.send(bytes(f"Content-Description: {image[0]}\r\n", 'utf-8'), False)
-            self.send(bytes(f'Content-Disposition:attachment;filename:"{image[0]}"; {os.path.getsize(os.path.join(self.images, image[0]))}\r\n', 'utf-8'), False)
-            with(open(os.path.join(self.images, image[0]), 'rb')) as image_f:
-                image_64_encode = base64.b64encode(image_f.read())
-            self.send(b"\r\n", False)
-            self.send(image_64_encode, False, False)
-            self.send(b'{image_64_encode}\r\n', False, False)
+        for line in file.readlines():
+            # print("начал")
+            # if line[-1] == "\n":
+            #     line = line[:-1]
+            self.send(bytes(f"{line}", 'utf-8'), False, True)
+            # print("закончил")
+            # self.send(b"\r\n")
 
-        self.send(b"--qwerty--\r\n", False)
+        file.close()
+        # for image in self.get_all_images():
+        #     self.send(b"\r\n", False)
+        #     self.send(b"--qwerty\r\n", False)
+        #     self.send(bytes(f"Content-Type: image/{image[1]}; name={image[0]}\r\n", 'utf-8'), False)
+        #     self.send(bytes(f"Content-Transfer-Encoding: base64\r\n", 'utf-8'), False)
+        #     self.send(bytes(f"Content-Description: {image[0]}\r\n", 'utf-8'), False)
+        #     self.send(bytes(f'Content-Disposition:attachment;filename:"{image[0]}"; {os.path.getsize(os.path.join(self.images, image[0]))}\r\n', 'utf-8'), False)
+        #     with(open(os.path.join(self.images, image[0]), 'rb')) as image_f:
+        #         image_64_encode = base64.b64encode(image_f.read())
+        #     self.send(b"\r\n", False)
+        #     self.send(image_64_encode, False, False)
+        #     self.send(b'{image_64_encode}\r\n', False, False)
+
+        # self.send(b"--qwerty--\r\n", False)
         code = self.send(b"\r\n.\r\n")
-        self.check_response_code_for_errors(code[0][0], code[0][1], ['250'], {})
+        self.check_response_code_for_errors(code[0][0], code[0][1], ['251'], {})
 
     def quit(self):
         code = self.send(bytes("QUIT \r\n", "utf-8"))
         self.check_response_code_for_errors(code[0][0], code[0][1], ['221'], {})
-        print_log("PROGRAM", b"the letter was queued successfully")
+        # print_log("PROGRAM", b"the letter was queued successfully")
         self.close()
 
     def close(self):
         self.sock.close()
-        quit()
+
